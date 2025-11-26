@@ -68,9 +68,10 @@ def download_operation(force_download: bool = False) -> Path:
     local_path = PROJECT_ROOT / "data" / "operation.csv"
     local_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if local_path.exists() and not force_download:
+    if local_path.exists() and local_path.stat().st_size > 0 and not force_download:
         return local_path
-    if local_path.exists() and force_download:
+
+    if local_path.exists():
         local_path.unlink()
 
     return download_from_drive(file_id, local_path)
@@ -83,12 +84,14 @@ def download_seismic(force_download: bool = False) -> Path:
     local_path = PROJECT_ROOT / "data" / "seismic.csv"
     local_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if local_path.exists() and not force_download:
+    if local_path.exists() and local_path.stat().st_size > 0 and not force_download:
         return local_path
-    if local_path.exists() and force_download:
+
+    if local_path.exists():
         local_path.unlink()
 
     return download_from_drive(file_id, local_path)
+
 
 
 if __name__ == "__main__":
