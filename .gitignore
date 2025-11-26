@@ -44,14 +44,12 @@ data/*.csv
 data/*.parquet
 
 
-# NHƯNG vẫn giữ file config chỉ đường tới Drive
+
 !data/data_source.yaml
 
 ########################
 # Credentials / keys
 ########################
-# Service account JSON key & các file key tương tự
-*lateral-faculty-*.json
-*service-account*.json
-*credentials*.json
-*key*.json
+# Service account JSON key
+geothermal_secret/*.json
+
