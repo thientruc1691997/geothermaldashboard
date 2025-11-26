@@ -1,0 +1,57 @@
+########################
+# OS / Editor crap
+########################
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+########################
+# Python cache / build
+########################
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.dist-info/
+build/
+dist/
+
+########################
+# Virtual env
+########################
+.venv/
+venv/
+ENV/
+env/
+
+########################
+# Environment & secrets
+########################
+.env
+*.env
+# Streamlit local secrets 
+.streamlit/secrets.toml
+
+########################
+# Data files 
+########################
+data/*.csv
+data/*.parquet
+
+
+# NHƯNG vẫn giữ file config chỉ đường tới Drive
+!data/data_source.yaml
+
+########################
+# Credentials / keys
+########################
+# Service account JSON key & các file key tương tự
+*lateral-faculty-*.json
+*service-account*.json
+*credentials*.json
+*key*.json
