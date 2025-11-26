@@ -1,10 +1,12 @@
+# data/google_drive_loader.py
+
 from pathlib import Path
+import json
 import yaml
 
 import streamlit as st
 from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
+from google.auth.transport.requests import AuthorizedSession
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = PROJECT_ROOT / "data" / "data_source.yaml"
@@ -16,27 +18,45 @@ def load_config():
 
 
 @st.cache_resource(show_spinner=False)
-def get_drive_service():
-    info = dict(st.secrets["gcp_service_account"])
+def get_authed_session() -> AuthorizedSession:
+    """
+    Create an AuthorizedSession using:
+    - LOCAL: service account JSON file (if exists)
+    - CLOUD: st.secrets["gcp_service_account"]
+    """
+    # 1) LOCAL: dùng file JSON trực tiếp (không phải TOML)
+    sa_path = PROJECT_ROOT / "geothermal_secret" / "lateral-faculty-479223-b3-bee48eb5837e.json"
+    if sa_path.exists():
+        with open(sa_path, "r") as f:
+            info = json.load(f)
+    else:
+        # 2) CLOUD: lấy từ secrets (phải cấu hình đúng trên Streamlit Cloud)
+        info = dict(st.secrets["gcp_service_account"])
+
     creds = service_account.Credentials.from_service_account_info(
         info,
         scopes=["https://www.googleapis.com/auth/drive.readonly"],
     )
-    service = build("drive", "v3", credentials=creds)
-    return service
+    session = AuthorizedSession(creds)
+    return session
 
 
 def download_from_drive(file_id: str, dst_path: Path) -> Path:
-    service = get_drive_service()
+    """
+    Download a file from Google Drive (by file_id) to dst_path
+    using a simple HTTPS GET with an AuthorizedSession.
+    """
+    session = get_authed_session()
 
-    request = service.files().get_media(fileId=file_id)
+    url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
     dst_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(dst_path, "wb") as fh:
-        downloader = MediaIoBaseDownload(fh, request)
-        done = False
-        while not done:
-            status, done = downloader.next_chunk()
+    with session.get(url, stream=True) as resp:
+        resp.raise_for_status()
+        with open(dst_path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=1024 * 1024):  # 1 MB
+                if chunk:
+                    f.write(chunk)
 
     return dst_path
 
@@ -69,3 +89,10 @@ def download_seismic(force_download: bool = False) -> Path:
         local_path.unlink()
 
     return download_from_drive(file_id, local_path)
+
+
+if __name__ == "__main__":
+    op_path = download_operation(force_download=True)
+    sei_path = download_seismic(force_download=True)
+    print("Operation downloaded to:", op_path)
+    print("Seismic   downloaded to:", sei_path)
