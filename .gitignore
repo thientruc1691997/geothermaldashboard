@@ -53,3 +53,4 @@ data/*.parquet
 # Service account JSON key
 geothermal_secret/*.json
 
+*.yaml

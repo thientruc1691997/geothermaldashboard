@@ -5,10 +5,9 @@ import time
 import numpy as np
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go 
+import plotly.graph_objects as go
 import streamlit as st
-
-from data.google_drive_loader import download_operation, download_seismic
+from ..data.google_drive_loader import download_operation, download_seismic
 
 # ==========================
 # CONFIG
@@ -24,33 +23,40 @@ st.title("🌋 Geothermal Plant Dashboard")
 # Variable groups by physical quantity
 FEATURE_GROUPS = {
     "Flow": [
-        "inj_flow", "prod_flow",
+        "inj_flow",
+        "prod_flow",
     ],
     "Temperature": [
-        "inj_temp", "prod_temp",
+        "inj_temp",
+        "prod_temp",
     ],
     "Pressure": [
-        "inj_whp", "prod_whp",
+        "inj_whp",
+        "prod_whp",
     ],
     "Energy": [
-        "inj_energy", "cum_inj_energy",
-        "cooling_energy", "cum_cooling_energy",
+        "inj_energy",
+        "cum_inj_energy",
+        "cooling_energy",
+        "cum_cooling_energy",
     ],
     "Volume": [
-        "volume", "cum_volume",
+        "volume",
+        "cum_volume",
     ],
 }
 
-shade_col = "is_producing" 
-shade_value = False 
-shade_color = "lightcoral" 
-shade_alpha = 0.3 
-phase_col = "phase" 
+shade_col = "is_producing"
+shade_value = False
+shade_color = "lightcoral"
+shade_alpha = 0.3
+phase_col = "phase"
 alt_colors = ("steelblue", "darkorange")
 
 # ==========================
 # Utility
 # ==========================
+
 
 def downsample_for_plot(df: pd.DataFrame, max_rows: int = 100_000) -> pd.DataFrame:
     """Randomly sample at most max_rows rows for plotting to avoid heavy charts."""
@@ -175,6 +181,7 @@ def add_seismic_targets(
 # DATA LOADING
 # ==========================
 
+
 @st.cache_data(show_spinner=True)
 def load_raw_data(op_path: str, sei_path: str):
     """
@@ -213,6 +220,7 @@ load_start = time.perf_counter()
 df_op_raw, df_sei_raw = load_raw_data(str(op_path), str(sei_path))
 load_time = time.perf_counter() - load_start
 st.caption(f"⏱ Load raw CSV: {load_time:.2f} s")
+
 
 @st.cache_data(show_spinner=True)
 def load_fake_forecast_horizon(n_points: int = 50) -> pd.DataFrame:
@@ -316,8 +324,9 @@ df_op_targets = compute_targets_for_op(df_op, df_sei)
 # TABS
 # ==========================
 
-tab_op, tab_sei, tab_forecast = st.tabs(["Operation", "Seismics event", "Forecast (demo)"])
-
+tab_op, tab_sei, tab_forecast = st.tabs(
+    ["Operation", "Seismics event", "Forecast (demo)"]
+)
 
 
 # ==========================
@@ -332,11 +341,7 @@ with tab_op:
     else:
         # Phase filter (dropdown)
         if phase_col in df_op.columns:
-            phase_values = (
-                df_op[phase_col]
-                .dropna()
-                .unique()
-            )
+            phase_values = df_op[phase_col].dropna().unique()
             phase_values = sorted(phase_values)
 
             phase_options = ["All phases"] + list(phase_values)
@@ -348,7 +353,9 @@ with tab_op:
             if selected_phase != "All phases":
                 df_op = df_op[df_op[phase_col] == selected_phase]
         else:
-            st.info(f"Column '{phase_col}' not found in operation data (no phase filter).")
+            st.info(
+                f"Column '{phase_col}' not found in operation data (no phase filter)."
+            )
 
         # Variable group chart – one feature at a time
         available_cols = [
@@ -374,7 +381,9 @@ with tab_op:
 
             df_feat = df_op[plot_cols].dropna(subset=["recorded_at", y_feature])
             df_feat_plot = downsample_for_plot(df_feat, max_rows=200_000)
-            df_feat_plot = df_feat_plot.sort_values("recorded_at").reset_index(drop=True)
+            df_feat_plot = df_feat_plot.sort_values("recorded_at").reset_index(
+                drop=True
+            )
 
             if df_feat_plot.empty:
                 st.info("No data to plot for this selection.")
@@ -463,7 +472,9 @@ with tab_op:
                 showlegend = color not in color_used
                 color_used[color] = True
 
-                name = f"{y_feature} (phase={ph_val})" if ph_val is not None else y_feature
+                name = (
+                    f"{y_feature} (phase={ph_val})" if ph_val is not None else y_feature
+                )
 
                 fig_feat.add_trace(
                     go.Scatter(
@@ -483,8 +494,6 @@ with tab_op:
             )
 
             st.plotly_chart(fig_feat, use_container_width=True)
-
-
 
 
 # ==========================
@@ -547,7 +556,7 @@ with tab_sei:
             labels={"class_label": "Class", "count": "Count"},
         )
         st.plotly_chart(fig_counts, use_container_width=True)
-        
+
 # ==========================
 # TAB 3 – FORECAST (DEMO)
 # ==========================
@@ -584,8 +593,10 @@ with tab_forecast:
         )
     with col3:
         st.markdown(f"**Risk level:**")
-        st.markdown(f"<span style='color:{risk_color}; font-size: 24px;'>{risk_label}</span>",
-                    unsafe_allow_html=True)
+        st.markdown(
+            f"<span style='color:{risk_color}; font-size: 24px;'>{risk_label}</span>",
+            unsafe_allow_html=True,
+        )
 
     st.markdown("---")
 
@@ -600,7 +611,9 @@ with tab_forecast:
             step=0.05,
         )
     with col_f2:
-        show_mag_points = st.checkbox("Show magnitude markers on risk curve", value=True)
+        show_mag_points = st.checkbox(
+            "Show magnitude markers on risk curve", value=True
+        )
 
     df_plot = df_f.copy()
     df_plot["above_thresh"] = df_plot["p_event_7d"] >= thresh
@@ -669,7 +682,8 @@ with tab_forecast:
                 mode="markers",
                 name="High-risk points (size ~ mag)",
                 marker=dict(
-                    size=5 + 8 * (df_plot.loc[df_plot["above_thresh"], "pred_mag"] / 3.0),
+                    size=5
+                    + 8 * (df_plot.loc[df_plot["above_thresh"], "pred_mag"] / 3.0),
                     color="darkred",
                     opacity=0.7,
                 ),
@@ -681,6 +695,3 @@ with tab_forecast:
         yaxis_title="P(event in next 7 days)",
     )
     st.plotly_chart(fig_prob, use_container_width=True)
-
-
-
