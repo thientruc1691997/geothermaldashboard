@@ -31,3 +31,84 @@ seismic-prediction-balmatt/
 ├── src/                    # Shared utility scripts (data loaders, smoothers)
 ├── requirements.txt        # Python dependencies
 └── README.md               
+
+
+## 🛠️ Installation & Setup
+**Clone the repository:**
+
+```bash
+git clone https://github.com/your-username/seismic-prediction-balmatt.git
+cd seismic-prediction-balmatt
+```
+
+**Install dependencies:**  
+It is recommended to use a virtual environment.
+
+```bash
+pip install -r requirements.txt
+```
+
+**Data Availability:**  
+*Raw operational data is proprietary to VITO. The scripts assume data is located in the `data/` folder or accessible via configured Google Drive paths.*
+
+---
+
+## 🚀 How to Run the Project
+This project is designed to be run sequentially or as standalone modules.
+
+### **Phase 1: Exploration (EDA)**
+**Goal:** Clean raw sensor logs, handle missing values, and visualize physical correlations.
+
+**Content:** Analysis of Injection Flow vs. Wellhead Pressure, and identifying operational "Phases."
+
+**To Run:** Open the notebook in Jupyter or Colab:
+```bash
+jupyter notebook 01_EDA/Seismicity_Data_Clearning_&_Assessing_&_EDA.ipynb
+```
+
+---
+
+### **Phase 2: Modeling (The Brain)**
+**Goal:** Train the predictive models using a Mixture of Experts (MoE) architecture.
+
+**Content:**  
+- Regime Detection: Uses *ruptures* to segment data by operational state.  
+- Feature Engineering: Creates rolling window stats (1D, 3D, 7D lags).  
+- Training: Fits Random Forest classifiers and regressors.
+
+**To Run:**
+```bash
+jupyter notebook 02_Modeling/Feature_Engineering_&_Modeling.ipynb
+```
+
+**Output:**  
+This will generate trained model files in the `moe_models/` directory.
+
+---
+
+### **Phase 3: Dashboard (The Interface)**
+**Goal:** Visualize real-time risks and historical data trends.
+
+**Content:** An interactive Streamlit app that overlays seismic events on top of pressure/flow curves and displays the model's risk probability.
+
+**To Run:**
+```bash
+streamlit run 03_Dashboard/dashboard.py
+```
+
+---
+
+## 📊 Key Results
+- **Non-Stationarity:** The reservoir behaves differently over time (2019 vs 2024). We successfully implemented Change Point Detection to handle these regime shifts.
+- **Model Accuracy:** The Mixture of Experts classifier achieves an F1-Macro score > 0.70 in identifying seismic windows, significantly outperforming standard baselines.
+
+---
+
+## 👥 Contributors
+**Sadia Parveen** — (2469624)
+
+For detailed technical documentation, please refer to the specific `README.md` files inside each folder.
+
+---
+
+
