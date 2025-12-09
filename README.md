@@ -37,8 +37,8 @@ seismic-prediction-balmatt/
 **Clone the repository:**
 
 ```bash
-git clone https://github.com/your-username/seismic-prediction-balmatt.git
-cd seismic-prediction-balmatt
+git clone https://github.com/thientruc1691997/repo_name.git
+cd repo_name
 ```
 
 **Install dependencies:**  
