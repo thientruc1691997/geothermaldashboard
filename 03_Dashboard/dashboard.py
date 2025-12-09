@@ -7,7 +7,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from ..data.google_drive_loader import download_operation, download_seismic
+from data.google_drive_loader import download_operation, download_seismic
 
 # ==========================
 # CONFIG
@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("🌋 Geothermal Plant Dashboard")
+st.title("Geothermal Plant Dashboard")
 
 
 # Variable groups by physical quantity

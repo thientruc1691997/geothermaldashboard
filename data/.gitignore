@@ -1,0 +1,12 @@
+# không push data
+data/
+*.parquet
+*.csv
+
+# không push secrets
+.env
+*client_secrets*.json
+*service_account*.json
+settings.yaml
+credentials.json
+token.json

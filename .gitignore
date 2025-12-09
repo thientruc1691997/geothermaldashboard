@@ -34,24 +34,28 @@ env/
 ########################
 .env
 *.env
+
 # Streamlit local secrets 
 .streamlit/secrets.toml
 
 ########################
-# Data files 
+# Data files in 03_Dashboard/data
 ########################
-data
-data/*.csv
-data/*.parquet
-
-
-
-!data/data_source.yaml
+# Ignore actual data files, keep code
+03_Dashboard/data/*.csv
+03_Dashboard/data/*.parquet
+03_Dashboard/data/*.xlsx
+03_Dashboard/data/*.pkl
 
 ########################
 # Credentials / keys
 ########################
-# Service account JSON key
-geothermal_secret/*.json
+# All geothermal secrets (service account, OAuth…)
+03_Dashboard/geothermal_secret/
+geothermal_secret/
 
-*.yaml
+# Other key-like files
+*.pem
+*.p12
+*.pfx
+*.key
