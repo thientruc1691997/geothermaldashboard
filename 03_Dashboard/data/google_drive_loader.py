@@ -100,6 +100,28 @@ def download_seismic(force_download: bool = False) -> Path:
 
     return download_from_drive(file_id, local_path)
 
+def download_processed_features(force_download: bool = False) -> Path:
+    """
+    Download the processed roll-lag feature dataset (features_5min.csv)
+    from Google Drive and store it under 03_Dashboard/data/.
+    The file_id is configured in data_source.yaml under:
+        geothermal.processed_features
+    """
+    cfg = load_config()["geothermal"]
+    file_id = cfg["processed_features"]
+
+    local_path = PROJECT_ROOT / "data" / "features_5min.csv"
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if local_path.exists() and local_path.stat().st_size > 0 and not force_download:
+        return local_path
+
+    if local_path.exists():
+        local_path.unlink()
+
+    return download_from_drive(file_id, local_path)
+
+
 
 if __name__ == "__main__":
     op_path = download_operation(force_download=True)

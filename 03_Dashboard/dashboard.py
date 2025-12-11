@@ -7,18 +7,27 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from data.google_drive_loader import download_operation, download_seismic
+from data.google_drive_loader import (
+    download_operation,
+    download_seismic,
+    download_processed_features,
+)
+from dataclasses import dataclass
+import joblib
 
 # ==========================
 # CONFIG
 # ==========================
 st.set_page_config(
-    page_title="Geothermal Operation & Seismic Dashboard",
+    page_title="Geothermal Plant Dashboard",
     layout="wide",
 )
 
 st.title("Geothermal Plant Dashboard")
 
+PROJECT_ROOT = Path(__file__).resolve().parent
+WRAPPED_DIR = PROJECT_ROOT / "wrapped_models"
+FEATURE_COLS_PATH = PROJECT_ROOT / "data" / "feature_cols.joblib"
 
 # Variable groups by physical quantity
 FEATURE_GROUPS = {
@@ -254,7 +263,118 @@ def load_fake_forecast_horizon(n_points: int = 50) -> pd.DataFrame:
         }
     )
     return df_f
+# ==========================
+# MoE ensemble helpers
+# ==========================
 
+@dataclass
+class MoEModel:
+    """
+    This class definition must match the one used when training
+    and saving moe_fold*.joblib in Colab. It only needs the same
+    attribute names and a compatible predict_proba method.
+    """
+    kmeans: object
+    gate_scaler: object
+    experts_by_cluster: dict
+    global_model: object
+
+    gate_features: list
+    expert_features: list
+
+    def predict_proba(self, X: pd.DataFrame):
+        """
+        Return array of shape (n_samples, 2): [P(class=0), P(class=1)]
+        where class=1 is "event in next 7 days".
+        """
+        # 1) Gate: scale gate features and predict cluster
+        Z_gate = self.gate_scaler.transform(X[self.gate_features])
+        clusters = self.kmeans.predict(Z_gate)
+
+        n = len(X)
+        p1 = np.zeros(n, dtype=float)
+
+        # 2) For each cluster, call corresponding expert (or global model)
+        for c in np.unique(clusters):
+            mask = clusters == c
+            expert = self.experts_by_cluster.get(int(c), self.global_model)
+            X_c = X.loc[mask, self.expert_features]
+            probs_c = expert.predict_proba(X_c)[:, 1]
+            p1[mask] = probs_c
+
+        p0 = 1.0 - p1
+        return np.vstack([p0, p1]).T
+
+
+@st.cache_resource(show_spinner=True)
+def load_feature_cols() -> list:
+    """
+    Load feature_cols list from local joblib file.
+    """
+    if not FEATURE_COLS_PATH.exists():
+        raise FileNotFoundError(f"feature_cols.joblib not found at {FEATURE_COLS_PATH}")
+    return joblib.load(FEATURE_COLS_PATH)
+
+@dataclass
+class MoEEnsemble:
+    models: list
+
+    def predict_proba(self, X: pd.DataFrame):
+        probs = [m.predict_proba(X) for m in self.models]
+        probs = np.stack(probs, axis=0)
+        return probs.mean(axis=0)
+
+    def predict(self, X: pd.DataFrame, threshold: float = 0.3):
+        p = self.predict_proba(X)[:, 1]
+        return (p >= threshold).astype(int)
+
+
+@st.cache_resource(show_spinner=True)
+def load_moe_ensemble() -> MoEEnsemble:
+    """
+    Load moe_fold1..5.joblib from local wrapped_models/ folder
+    and build an ensemble.
+    """
+    models = []
+    for fold in range(1, 6):
+        path = WRAPPED_DIR / f"moe_fold{fold}.joblib"
+        if not path.exists():
+            st.warning(f"MoE model not found: {path}")
+            continue
+        m = joblib.load(path)
+        models.append(m)
+
+    if not models:
+        st.error("No MoE fold models could be loaded from wrapped_models/.")
+        st.stop()
+
+    return MoEEnsemble(models)
+
+
+@st.cache_data(show_spinner=True)
+def load_processed_features() -> pd.DataFrame:
+    """
+    Load processed roll-lag feature dataset 
+    using Google Drive API via download_processed_features().
+    """
+    proc_path = download_processed_features(force_download=False)
+    df = pd.read_csv(proc_path)
+
+    # Try to set a datetime index (required for 7-day window selection)
+    for col in ["recorded_at"]:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce")
+            df = df.set_index(col).sort_index()
+            break
+
+    return df
+
+# Show update time based on processed features (t_max - 7 days)
+df_proc_preview = load_processed_features()
+if not df_proc_preview.empty and isinstance(df_proc_preview.index, pd.DatetimeIndex):
+    t_max = df_proc_preview.index.max()
+    t_now = t_max - pd.Timedelta(days=7)
+    st.caption(f"📅 Update data: {t_now}")
 
 # ==========================
 # GLOBAL FILTERS (no sidebar)
@@ -325,7 +445,7 @@ df_op_targets = compute_targets_for_op(df_op, df_sei)
 # ==========================
 
 tab_op, tab_sei, tab_forecast = st.tabs(
-    ["Operation", "Seismics event", "Forecast (demo)"]
+    ["Operation", "Seismics event", "Forecast"]
 )
 
 
@@ -334,7 +454,7 @@ tab_op, tab_sei, tab_forecast = st.tabs(
 # ==========================
 
 with tab_op:
-    st.subheader("🛠 Operation – by variable group")
+    st.subheader("Operation – by variable group")
 
     if "recorded_at" not in df_op.columns:
         st.info("Operation data does not contain 'recorded_at'. Cannot plot over time.")
@@ -389,7 +509,7 @@ with tab_op:
                 st.info("No data to plot for this selection.")
                 st.stop()
 
-            # --- FIGURE: dùng graph_objects để điều khiển line segments ---
+            
             fig_feat = go.Figure()
 
             # 1) Shaded background where is_producing == False
@@ -444,7 +564,7 @@ with tab_op:
                             line_width=0,
                         )
 
-            # 2) Line, đổi màu xen kẽ theo phase
+            # 2) Line
             x_all = pd.to_datetime(df_feat_plot["recorded_at"]).tolist()
             y_all = df_feat_plot[y_feature].to_numpy()
 
@@ -522,58 +642,65 @@ with tab_sei:
         )
         st.plotly_chart(fig_mag_time, use_container_width=True)
 
-    # Fig 2: count of classes in (t, t+7] based on magnitude_bin_7days
-    st.markdown("### Count of seismic classes in next 7 days")
-
-    if "magnitude_bin_7days" not in df_op_targets.columns:
-        st.info(
-            "Column 'magnitude_bin_7days' not found in operation targets. "
-            "Check data or time columns."
-        )
-    else:
-        class_mapping = {
-            0: "0 – no event",
-            1: "1 – mag < 1.2",
-            2: "2 – 1.2 ≤ mag ≤ 1.8",
-            3: "3 – mag > 1.8",
-        }
-
-        df_bins = df_op_targets.copy()
-        counts = (
-            df_bins["magnitude_bin_7days"]
-            .value_counts()
-            .rename_axis("magnitude_bin_7days")
-            .reset_index(name="count")
-            .sort_values("magnitude_bin_7days")
-        )
-        counts["class_label"] = counts["magnitude_bin_7days"].map(class_mapping)
-
-        fig_counts = px.bar(
-            counts,
-            x="class_label",
-            y="count",
-            title="Count of seismic classes in next 7 days",
-            labels={"class_label": "Class", "count": "Count"},
-        )
-        st.plotly_chart(fig_counts, use_container_width=True)
 
 # ==========================
-# TAB 3 – FORECAST (DEMO)
+# TAB 3 – FORECAST 
 # ==========================
+
 
 with tab_forecast:
-    st.subheader("Seismic event forecast (next 7 days) – demo")
+    st.subheader("Seismic event forecast (next 7 days) – model output")
 
-    df_f = load_fake_forecast_horizon(n_points=80)
+    # 1) Load feature list, ensemble model, and processed data
+    try:
+        feature_cols = load_feature_cols()
+        ensemble = load_moe_ensemble()
+        df_proc = load_processed_features()
+    except Exception as e:
+        st.error(f"Error while loading model or processed data: {e}")
+        st.stop()
 
-    # Overall risk summary (use mean prob as a simple proxy)
-    mean_p = float(df_f["p_event_7d"].mean())
-    expected_mag = float(df_f["pred_mag"].mean())
+    if df_proc.empty:
+        st.info("Processed feature dataset is empty. Please check features_5min.csv on Drive.")
+        st.stop()
 
-    if mean_p < 0.2:
+    # Ensure we have a DatetimeIndex
+    if not isinstance(df_proc.index, pd.DatetimeIndex):
+        st.error("Processed dataset index is not DatetimeIndex. Forecast tab requires a time index.")
+        st.stop()
+
+    # 2) Build model input X_all with the exact feature list
+    missing = [c for c in feature_cols if c not in df_proc.columns]
+    if missing:
+        st.error(f"Missing {len(missing)} features in processed data, e.g. {missing[:5]}")
+        st.stop()
+
+    X_all = df_proc[feature_cols].dropna()
+    if X_all.empty:
+        st.error("No valid rows in processed features after dropna().")
+        st.stop()
+
+    # 3) Select last 7 days of 5-minute data = 7 * 24 * 12 = 2016 samples
+    step_minutes = 5
+    n_steps_7d = 7 * 24 * (60 // step_minutes)  # 2016
+    X_7d = X_all.tail(n_steps_7d)
+
+    # 4) Predict probabilities with MoE ensemble
+    probs = ensemble.predict_proba(X_7d)
+    p_event = probs[:, 1]
+
+    df_forecast = pd.DataFrame(
+        {"timestamp": X_7d.index, "p_event_7d": p_event}
+    ).set_index("timestamp")
+
+    # 5) Risk summary (current point + average over the 7-day window)
+    current_p = float(df_forecast["p_event_7d"].iloc[-1])
+    mean_p = float(df_forecast["p_event_7d"].mean())
+
+    if current_p < 0.2:
         risk_label = "Low"
         risk_color = "green"
-    elif mean_p < 0.5:
+    elif current_p < 0.5:
         risk_label = "Medium"
         risk_color = "orange"
     else:
@@ -582,17 +709,11 @@ with tab_forecast:
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric(
-            "Avg P(event in next 7 days)",
-            f"{mean_p:.2f}",
-        )
+        st.metric("Current P(event in next 7 days)", f"{current_p:.2f}")
     with col2:
-        st.metric(
-            "Expected magnitude (if event)",
-            f"{expected_mag:.2f}",
-        )
+        st.metric("Average P(event over window)", f"{mean_p:.2f}")
     with col3:
-        st.markdown(f"**Risk level:**")
+        st.markdown("**Risk level (current):**")
         st.markdown(
             f"<span style='color:{risk_color}; font-size: 24px;'>{risk_label}</span>",
             unsafe_allow_html=True,
@@ -600,7 +721,7 @@ with tab_forecast:
 
     st.markdown("---")
 
-    # Controls for this tab
+    # Controls
     col_f1, col_f2 = st.columns(2)
     with col_f1:
         thresh = st.slider(
@@ -611,29 +732,49 @@ with tab_forecast:
             step=0.05,
         )
     with col_f2:
-        show_mag_points = st.checkbox(
-            "Show magnitude markers on risk curve", value=True
-        )
+        st.write("Red bands: probability exceeds the threshold")
 
-    df_plot = df_f.copy()
+    # ==========================
+    # Plot probability vs time for a selected day range (1–7)
+    # ==========================
+
+    st.markdown("### Probability of seismic event in next 7 days over time")
+
+
+    df_plot_base = df_forecast.copy()
+    t0 = df_plot_base.index.min() 
+    df_plot_base["rel_day"] = (df_plot_base.index - t0) / pd.Timedelta(days=1)
+    df_plot_base["day_index"] = df_plot_base["rel_day"].astype(int) + 1
+    # đảm bảo nằm trong [1,7]
+    df_plot_base["day_index"] = df_plot_base["day_index"].clip(1, 7)
+
+    # Chọn khoảng ngày muốn xem, ví dụ Day 3–5
+    day_start, day_end = st.select_slider(
+        "Select day range within the 7-day window",
+        options=list(range(1, 8)),          # [1, 2, 3, 4, 5, 6, 7]
+        value=(1, 7),                       #  default full 7 days
+        format_func=lambda d: f"Day {d}",
+    )
+
+    mask = (df_plot_base["day_index"] >= day_start) & (
+        df_plot_base["day_index"] <= day_end
+    )
+    df_plot = df_plot_base.loc[mask].copy()
+
+    # Đánh dấu điểm vượt threshold
     df_plot["above_thresh"] = df_plot["p_event_7d"] >= thresh
-
-    # === Plot 1: Probability curve over horizon ===
-    st.markdown("### P(event) over horizon (days from now)")
 
     fig_prob = go.Figure()
 
-    # probability line
     fig_prob.add_trace(
         go.Scatter(
-            x=df_plot["horizon_days"],
+            x=df_plot.index,
             y=df_plot["p_event_7d"],
             mode="lines",
             name="P(event)",
         )
     )
 
-    # threshold line
     fig_prob.add_hline(
         y=thresh,
         line_dash="dash",
@@ -642,14 +783,14 @@ with tab_forecast:
         annotation_position="top left",
     )
 
-    # shading where P(event) >= threshold
-    times = df_plot["horizon_days"].to_numpy()
-    probs = df_plot["p_event_7d"].to_numpy()
+    # Add shaded regions where P(event) >= threshold 
+    times = df_plot.index.to_numpy()
+    probs_arr = df_plot["p_event_7d"].to_numpy()
 
     in_segment = False
     seg_start = None
     for i in range(len(df_plot)):
-        above = probs[i] >= thresh
+        above = probs_arr[i] >= thresh
         if above and not in_segment:
             in_segment = True
             seg_start = times[i]
@@ -673,25 +814,12 @@ with tab_forecast:
             line_width=0,
         )
 
-    # optional markers sized by magnitude
-    if show_mag_points:
-        fig_prob.add_trace(
-            go.Scatter(
-                x=df_plot.loc[df_plot["above_thresh"], "horizon_days"],
-                y=df_plot.loc[df_plot["above_thresh"], "p_event_7d"],
-                mode="markers",
-                name="High-risk points (size ~ mag)",
-                marker=dict(
-                    size=5
-                    + 8 * (df_plot.loc[df_plot["above_thresh"], "pred_mag"] / 3.0),
-                    color="darkred",
-                    opacity=0.7,
-                ),
-            )
-        )
-
     fig_prob.update_layout(
-        xaxis_title="Days from now",
+        xaxis_title="Time",
         yaxis_title="P(event in next 7 days)",
     )
     st.plotly_chart(fig_prob, use_container_width=True)
+
+    st.markdown("### Forecast table (last 50 points)")
+    st.dataframe(df_forecast.tail(50))
+    st.caption("Note: The forecast is based on a Mixture of Experts model ensemble trained on historical data. Actual seismic events may vary.")
