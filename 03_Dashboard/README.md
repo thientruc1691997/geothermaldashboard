@@ -1,6 +1,5 @@
 # Phase 3: Interactive Monitoring Dashboard
 
-# 03_Dashboard – Geothermal Seismic Forecast
 
 Streamlit app for:
 - Visualizing geothermal **operation data**
@@ -59,6 +58,7 @@ geothermal:
   processed_features: "<file_id>"
 ```
 All three Drive files must be shared (Viewer) with the Google Cloud service account used by the app.
+
 ---
 ## Models
 Trained offline -> wrapped -> stored as:
