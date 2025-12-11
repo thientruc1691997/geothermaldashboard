@@ -354,19 +354,60 @@ def load_moe_ensemble() -> MoEEnsemble:
 @st.cache_data(show_spinner=True)
 def load_processed_features() -> pd.DataFrame:
     """
-    Load processed roll-lag feature dataset 
-    using Google Drive API via download_processed_features().
+    Load processed feature dataset from Google Drive, but only keep
+    the last N days of data to avoid loading the entire (1.3GB) file
+    into memory.
+
+    Assumes there is a 'recorded_at' column in the CSV.
+    Returns a DataFrame indexed by recorded_at (DatetimeIndex), sorted.
     """
+    # 1) Download CSV from Drive to local path (cached by filename)
     proc_path = download_processed_features(force_download=False)
-    df = pd.read_csv(proc_path)
 
-    # Try to set a datetime index (required for 7-day window selection)
-    for col in ["recorded_at"]:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce")
-            df = df.set_index(col).sort_index()
-            break
 
+    n_days_keep = 10
+    step_minutes = 5
+    steps_per_day = int(60 / step_minutes * 24)  # 288 points/day
+    max_rows_needed = n_days_keep * steps_per_day
+
+    # 3) Read CSV in chunks
+    chunks = pd.read_csv(proc_path, chunksize=200_000)
+    tail_chunks = []
+    total_rows = 0
+
+    for chunk in chunks:
+        if "recorded_at" not in chunk.columns:
+            raise KeyError(
+                "Column 'recorded_at' not found in processed features CSV. "
+                "Please check the file format."
+            )
+
+   
+        chunk["recorded_at"] = pd.to_datetime(chunk["recorded_at"], errors="coerce")
+        chunk = chunk.dropna(subset=["recorded_at"])
+
+ 
+        chunk = chunk.sort_values("recorded_at")
+
+        tail_chunks.append(chunk)
+        total_rows += len(chunk)
+
+       
+        while total_rows > max_rows_needed * 3 and len(tail_chunks) > 1:
+            removed = tail_chunks.pop(0)
+            total_rows -= len(removed)
+
+    if not tail_chunks:
+        # no data or all invalid
+        return pd.DataFrame()
+
+    # 4) Gộp tail, sort lại, chỉ giữ đúng số dòng cần
+    df = pd.concat(tail_chunks, axis=0)
+    df = df.sort_values("recorded_at")
+    df = df.tail(max_rows_needed)
+
+    # 5) Set DatetimeIndex
+    df = df.set_index("recorded_at")
     return df
 
 # Show update time based on processed features (t_max - 7 days)
