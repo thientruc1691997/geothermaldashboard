@@ -1,36 +1,73 @@
 # Phase 3: Interactive Monitoring Dashboard
 
-## 📌 Overview
-This module contains the production-ready **Streamlit** application designed for real-time monitoring of the Balmatt Geothermal Plant. 
-The dashboard bridges the gap between complex machine learning models and operational decision-making, allowing operators to visualize the relationship between plant parameters (Flow, Pressure) and induced seismicity risks.
+# 03_Dashboard – Geothermal Seismic Forecast
 
-## 📂 Files
-* `dashboard.py`: The main application entry point containing UI layout and plotting logic.
-* `../data/google_drive_loader.py`: Custom module to securely fetch large datasets from Google Drive at runtime.
+Streamlit app for:
+- Visualizing geothermal **operation data**
+- Visualizing **seismic events**
+- Showing **7-day seismic event probability** using a Mixture-of-Experts (MoE) model
 
-## 🌟 Key Features
+🔗 **Deployed app:**  
+https://geothermaldashboard-mmrt8zvhkc2nmzrubjpzwh.streamlit.app/
 
-### 1. Multi-Parameter Visualization
-Users can dynamically select and overlay various operational metrics to explore correlations:
-* **Flow Rates:** Injection vs. Production flow.
-* **Pressure:** Wellhead pressure (WHP) and Annulus pressure.
-* **Temperature:** Injection vs. Production temperature differentials (`dT`).
-* **Energy:** Cumulative energy injection and cooling.
+---
 
-### 2. Seismic Event Overlay
-* **Correlation Plotting:** Seismic events are plotted on a secondary axis directly over operational data.
-* **Magnitude Encoding:** Marker size and color intensity scale with event magnitude ($M_L$), making severe events immediately visible.
+## Structure
 
-### 3. Operational Context
-* **Phase Highlighting:** The background is dynamically shaded (e.g., Red/Green zones) to indicate whether the plant is in an active **Production Phase** or a Shut-in phase.
-* **Risk Thresholds:** Visual indicators for model-predicted probabilities crossing safety thresholds (e.g., $P(\text{Event}) > 0.3$).
+```text
+03_Dashboard/
+├── dashboard.py              # Main Streamlit app
+├── README.md
+├── data/
+│   ├── data_source.yaml      # Google Drive file_ids (operation, seismic, processed_features)
+│   ├── feature_cols.joblib   # List of features used by the model
+│   └── google_drive_loader.py# Download CSVs from Google Drive
+└── wrapped_models/
+    ├── moe_fold1.joblib
+    ├── moe_fold2.joblib
+    ├── moe_fold3.joblib
+    ├── moe_fold4.joblib
+    └── moe_fold5.joblib      # Wrapped MoE models (one per CV fold)
+```
+---
 
-## ⚙️ Technical Implementation
+## Tabs in the App
 
-### Performance Optimization
-To handle high-frequency sensor data (5-minute intervals over 5 years) within a web browser:
-* **Downsampling:** Large datasets are randomly downsampled (to ~100k points) for rendering speed while maintaining statistical distribution.
-* **Plotly:** Uses WebGL-accelerated plotting for responsive zooming and panning.
+### **1. Operation**
+Time-series plots of flow, pressure, temperature, energy, and volume variables.  
+Includes phase colouring and shaded non-producing segments.
+
+### **2. Seismics event**
+Plots:
+- Magnitude over time  
+
+### **3. Forecast (MoE Model)**
+- Uses last **7 days × 5-minute data**
+- Computes probability of an event in the next 7 days  
+- Shows risk summary, interactive thresholding, and a forecast table  
+- No model training inside Streamlit (only inference)
+
+---
+
+## Credentials & Data Access
+
+### `data_source.yaml`
+```yaml
+geothermal:
+  operation: "<file_id>"
+  seismic: "<file_id>"
+  processed_features: "<file_id>"
+```
+All three Drive files must be shared (Viewer) with the Google Cloud service account used by the app.
+---
+## Models
+Trained offline -> wrapped -> stored as:
+```
+wrapped_models/moe_fold*.joblib
+data/feature_cols.joblib
+```
+
+----
 
 ### Data Architecture
 To keep the GitHub repository lightweight and secure:
@@ -56,4 +93,6 @@ To keep the GitHub repository lightweight and secure:
           |---------------------------|
           |  operation.csv (raw)      |
           |  seismic.csv   (raw)      |
+          |  processed_features.csv   |
           +---------------------------+
+```
