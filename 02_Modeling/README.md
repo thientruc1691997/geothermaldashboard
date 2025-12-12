@@ -35,11 +35,14 @@ We decompose the prediction problem into three stages:
     * **Fallback:** A Global Model handles edge cases where an expert has insufficient training data.
 * **Metric:** F1-Macro Score (optimized for rare event detection).
 
-#### **Stage 2: Severity Classification**
+#### **Stage 2:** 
+
+### **Approach 1: Severity Classification**
 * **Goal:** Given that an event occurs, will it be **Severe** ($M \ge 1.2$)?
 * **Strategy:** Conditional model trained only on positive event samples using **RandomOverSampling** to handle extreme class imbalance.
 
-#### **Stage 3: Magnitude Regression**
+#### **Stage 2:
+### **Approach 2: Magnitude Regression**
 * **Goal:** Predict the exact maximum magnitude ($M_{max}$) for the next 7 days.
 * **Model:** Random Forest Regressor.
 * **Metric:** Mean Absolute Error (MAE).
@@ -48,8 +51,8 @@ We decompose the prediction problem into three stages:
 * **Validation Strategy:** 5-Fold `TimeSeriesSplit` with a **7-day embargo (gap)** between train and test sets. This ensures zero data leakage from future events.
 * **Results (Fold 5):**
     * **Stage 1 F1-Macro:** ~0.715 (High recall for events).
-    * **Stage 2 F1-Macro:** ~0.633 (Effective at distinguishing minor vs. severe shocks).
-    * **Stage 3 MAE:** ~0.20 - 0.40 magnitude units (depending on the regime).
+    * **Stage 2 (Approach 1) F1-Macro:** ~0.633 (Effective at distinguishing minor vs. severe shocks).
+    * **Stage 2 (Approach 2) MAE:** ~0.20 - 0.40 magnitude units (depending on the regime).
 
 ## 🚀 Usage
 To replicate the training pipeline:

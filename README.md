@@ -37,8 +37,8 @@ seismic-prediction-balmatt/
 **Clone the repository:**
 
 ```bash
-git clone https://github.com/thientruc1691997/repo_name.git
-cd repo_name
+git clone https://github.com/thientruc1691997/geothermaldashboard.git
+cd geothermaldashboard
 ```
 
 **Install dependencies:**  
@@ -106,6 +106,10 @@ streamlit run 03_Dashboard/dashboard.py
 
 ## 👥 Contributors
 **Sadia Parveen** — (2469624)
+**Nguyen Thien Truc Do** - (2469632)
+**Thi Hong Nhung Nguyen** - (2470664)
+**Naheed Hidayat** - (2469623)
+**Affnan Akter** - (2469853)
 
 For detailed technical documentation, please refer to the specific `README.md` files inside each folder.
 
