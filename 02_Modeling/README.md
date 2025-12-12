@@ -41,7 +41,7 @@ We decompose the prediction problem into three stages:
 * **Goal:** Given that an event occurs, will it be **Severe** ($M \ge 1.2$)?
 * **Strategy:** Conditional model trained only on positive event samples using **RandomOverSampling** to handle extreme class imbalance.
 
-#### **Stage 2:
+#### **Stage 2**:
 ### **Approach 2: Magnitude Regression**
 * **Goal:** Predict the exact maximum magnitude ($M_{max}$) for the next 7 days.
 * **Model:** Random Forest Regressor.
