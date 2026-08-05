@@ -1,5 +1,10 @@
 # 🌋 Balmatt Geothermal Project: Seismic Event Prediction
 
+## 🔗 Live Dashboard
+**[https://geothermaldashboard-mmrt8zvhkc2nmzrubjpzwh.streamlit.app/](https://geothermaldashboard-mmrt8zvhkc2nmzrubjpzwh.streamlit.app/)**
+
+> ⚠️ This app is currently set to **private** on Streamlit Cloud. The link redirects to a login wall for anyone without access. To make it public: go to [share.streamlit.io](https://share.streamlit.io) → the `geothermaldashboard` app → **Settings → Sharing** → set to "This app is public and searchable."
+
 ## 📌 Project Overview
 This project develops a machine learning framework to predict induced seismicity at the **Balmatt Geothermal Power Plant** (operated by VITO, Mol, Belgium). 
 
